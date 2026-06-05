@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#3B6D11">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VeloTrack">
+  <meta name="description" content="Велотрекер з офлайн-картами Львова">
+
+  <title>VeloTrack</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Tabler Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Status Bar -->
+  <div id="status-bar">
+    <div class="app-logo">
+      <div class="logo-icon"><i class="ti ti-bike" aria-hidden="true"></i></div>
+      <div>
+        <div class="logo-name">VeloTrack</div>
+        <div class="logo-sub">Львів</div>
+      </div>
+    </div>
+    <div class="status-badges">
+      <span class="badge badge-offline" id="offline-badge" style="display:none">Офлайн</span>
+      <span class="badge badge-rec" id="rec-badge" style="display:none">● REC</span>
+      <span class="badge badge-gps" id="gps-badge">GPS...</span>
+    </div>
+  </div>
+
+  <!-- ── MAP VIEW ──────────────────────────────────── -->
+  <div class="view active" id="map-view">
+
+    <div id="map"></div>
+
+    <!-- HUD -->
+    <div class="map-hud">
+      <div class="hud-card hud-speed">
+        <div class="hud-speed-num" id="hud-speed">0</div>
+        <div class="hud-speed-unit">км/год</div>
+      </div>
+      <div class="hud-card hud-mini-stats">
+        <div class="hud-stat">
+          <div class="hud-stat-val" id="hud-dist">0.0</div>
+          <div class="hud-stat-lbl">км</div>
+        </div>
+        <div class="hud-stat">
+          <div class="hud-stat-val" id="hud-time">0:00</div>
+          <div class="hud-stat-lbl">час</div>
+        </div>
+        <div class="hud-stat">
+          <div class="hud-stat-val" id="hud-avg">0.0</div>
+          <div class="hud-stat-lbl">сер</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Record controls -->
+    <div id="rec-area">
+      <button class="rec-side-btn" id="center-btn" aria-label="Моє місце">
+        <i class="ti ti-current-location" aria-hidden="true"></i>
+      </button>
+      <button id="rec-btn" aria-label="Почати / зупинити запис">
+        <i class="ti ti-player-play" aria-hidden="true"></i>
+      </button>
+      <button class="rec-side-btn" aria-label="Мій маршрут" onclick="document.querySelector('[data-view=history-view]').click()">
+        <i class="ti ti-route" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── HISTORY VIEW ──────────────────────────────── -->
+  <div class="view" id="history-view" style="overflow-y:auto;padding:16px;gap:0">
+    <div class="hist-header" style="margin-bottom:14px">
+      <div class="hist-title">Мої поїздки</div>
+      <div class="week-total" id="week-total"></div>
+    </div>
+    <div id="ride-list"></div>
+  </div>
+
+  <!-- ── STATS VIEW ────────────────────────────────── -->
+  <div class="view" id="stats-view" style="overflow-y:auto;padding:16px;gap:12px">
+    <div class="stats-title">Статистика</div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-box-num" id="s-rides">0</div>
+        <div class="stat-box-label">поїздок</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-num" id="s-dist">0<span class="stat-box-unit">км</span></div>
+        <div class="stat-box-label">загальна дистанція</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-num" id="s-time">0:00</div>
+        <div class="stat-box-label">у сідлі</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-box-num" id="s-avg"><span class="stat-box-unit" style="font-size:20px">—</span></div>
+        <div class="stat-box-label">середня швидкість</div>
+      </div>
+      <div class="stat-box" style="grid-column:span 2">
+        <div class="stat-box-num" id="s-best">0<span class="stat-box-unit">км</span></div>
+        <div class="stat-box-label">найдовша поїздка</div>
+      </div>
+    </div>
+
+    <div class="bar-chart-wrap">
+      <div class="bar-chart-title">Дистанція за 7 днів</div>
+      <div class="bar-chart" id="week-chart">
+        <div class="bar-col"><div class="bar" style="height:2px"></div><div class="bar-lbl">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DETAIL VIEW ───────────────────────────────── -->
+  <div class="view" id="detail-view">
+    <button class="back-btn" id="back-btn" aria-label="Назад">
+      <i class="ti ti-arrow-left" aria-hidden="true"></i>
+    </button>
+    <div id="detail-map" style="flex:1"></div>
+    <div class="detail-sheet">
+      <div class="detail-name" id="detail-name">Поїздка</div>
+      <div class="detail-stats">
+        <div>
+          <div class="d-stat-val" id="d-dist">—</div>
+          <div class="d-stat-lbl">км</div>
+        </div>
+        <div>
+          <div class="d-stat-val" id="d-time">—</div>
+          <div class="d-stat-lbl">час</div>
+        </div>
+        <div>
+          <div class="d-stat-val" id="d-avg">—</div>
+          <div class="d-stat-lbl">сер км/г</div>
+        </div>
+        <div>
+          <div class="d-stat-val" id="d-max">—</div>
+          <div class="d-stat-lbl">макс км/г</div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button class="action-btn" onclick="shareRide()" aria-label="Поділитись">
+          <i class="ti ti-share" aria-hidden="true"></i> Поділитись
+        </button>
+        <button class="action-btn danger" id="del-btn" aria-label="Видалити">
+          <i class="ti ti-trash" aria-hidden="true"></i> Видалити
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom Nav ────────────────────────────────── -->
+  <nav id="bottom-nav" role="navigation" aria-label="Навігація">
+    <button class="nav-btn active" data-view="map-view" aria-label="Карта">
+      <i class="ti ti-map" aria-hidden="true"></i>
+      <span>Карта</span>
+    </button>
+    <button class="nav-btn" data-view="history-view" aria-label="Маршрути">
+      <i class="ti ti-route" aria-hidden="true"></i>
+      <span>Маршрути</span>
+    </button>
+    <button class="nav-btn" data-view="stats-view" aria-label="Статистика">
+      <i class="ti ti-chart-bar" aria-hidden="true"></i>
+      <span>Статистика</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- Install prompt -->
+<div id="install-prompt">
+  <div class="install-text">
+    <strong>Встановити VeloTrack</strong>
+    Додайте на екран для офлайн-доступу
+  </div>
+  <div class="install-btns">
+    <button class="btn-install" id="install-btn">Встановити</button>
+    <button class="btn-dismiss" id="dismiss-install">Пізніше</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="js/app.js"></script>
+<script>
+// Share ride helper
+function shareRide() {
+  if (navigator.share) {
+    navigator.share({ title: 'VeloTrack', text: 'Дивись мій маршрут!' }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(location.href);
+    window.toast('Посилання скопійовано!');
+  }
+}
+</script>
+</body>
+</html>
