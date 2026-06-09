@@ -1,5 +1,3 @@
-// tracker.js — GPS recording logic
-
 export class RideTracker {
   constructor(onUpdate) {
     this.onUpdate = onUpdate;
@@ -9,9 +7,7 @@ export class RideTracker {
     this.lastPoint = null;
     this.totalDistance = 0;
     this.maxSpeed = 0;
-    this.speedSamples = [];
     this.active = false;
-    this.pausedAt = null;
     this.totalPausedMs = 0;
   }
 
@@ -21,9 +17,9 @@ export class RideTracker {
     this.startTime = Date.now();
     this.totalDistance = 0;
     this.maxSpeed = 0;
-    this.speedSamples = [];
     this.active = true;
     this.totalPausedMs = 0;
+    this.lastPoint = null;
 
     this.watchId = navigator.geolocation.watchPosition(
       pos => this._onPosition(pos),
@@ -31,31 +27,38 @@ export class RideTracker {
       {
         enableHighAccuracy: true,
         maximumAge: 2000,
-        timeout: 10000
+        timeout: 15000
       }
     );
   }
 
   _onPosition(pos) {
     if (!this.active) return;
-    const { latitude: lat, longitude: lng, speed, accuracy } = pos.coords;
-    if (accuracy > 40) return; // skip noisy points
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    if (accuracy > 40) return;
 
-    const point = { lat, lng, t: Date.now(), speed: speed || 0, accuracy };
-    this.points.push(point);
+    const now = Date.now();
+    const point = { lat, lng, t: now, accuracy };
 
+    // Рахуємо швидкість самі через відстань/час
     if (this.lastPoint) {
       const dist = this._haversine(this.lastPoint, point);
-      if (dist < 200) { // ignore GPS jumps > 200m
+      const dt = (now - this.lastPoint.t) / 1000; // секунди
+
+      if (dist < 200 && dt > 0) {
         this.totalDistance += dist;
+        const speedKmh = (dist / dt) * 3.6;
+        point.speed = speedKmh;
+        if (speedKmh > this.maxSpeed) this.maxSpeed = speedKmh;
+      } else {
+        point.speed = 0;
       }
+    } else {
+      point.speed = 0;
     }
 
-    const speedKmh = (speed || 0) * 3.6;
-    this.speedSamples.push(speedKmh);
-    if (speedKmh > this.maxSpeed) this.maxSpeed = speedKmh;
+    this.points.push(point);
     this.lastPoint = point;
-
     this.onUpdate(this.getStats());
   }
 
@@ -63,9 +66,13 @@ export class RideTracker {
     const elapsed = this.active
       ? (Date.now() - this.startTime - this.totalPausedMs) / 1000
       : 0;
-    const avgSpeed = elapsed > 0 ? (this.totalDistance / 1000) / (elapsed / 3600) : 0;
-    const currentSpeed = this.speedSamples.length > 0
-      ? this.speedSamples[this.speedSamples.length - 1]
+
+    const avgSpeed = elapsed > 0
+      ? (this.totalDistance / 1000) / (elapsed / 3600)
+      : 0;
+
+    const currentSpeed = this.points.length > 0
+      ? (this.points[this.points.length - 1].speed || 0)
       : 0;
 
     return {
