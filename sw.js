@@ -1,4 +1,4 @@
-const CACHE_NAME = 'velotrack-v1';
+const CACHE_NAME = 'velotrack-v2';
 const TILE_CACHE = 'velotrack-tiles-v1';
 const MAX_TILES = 2000;
 const BASE = '/velotrack';
